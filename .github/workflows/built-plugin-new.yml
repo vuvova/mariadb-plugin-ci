@@ -3,11 +3,6 @@ name: Build lefred MariaDB plugin
 on:
   workflow_call:
     inputs:
-      plugin_name:
-        description: Human-readable plugin name used in package names
-        required: true
-        type: string
-
       test_suites:
         description: mtr suite names to run
         required: false
