@@ -26,7 +26,7 @@ on:
         type: string
 
       extra_packages:
-        description: Optional RPM package specifications
+        description: Optional Debian package specifications
         default: ''
         type: string
 
