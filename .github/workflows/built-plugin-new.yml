@@ -1,0 +1,102 @@
+name: Build lefred MariaDB plugin
+
+on:
+  workflow_call:
+    inputs:
+      plugin_name:
+        description: Human-readable plugin name used in package names
+        required: true
+        type: string
+
+      test_suites:
+        description: mtr suite names to run
+        required: false
+        default: ""
+        type: string
+
+      artifact_retention_days:
+        description: Number of days to retain workflow artifacts
+        required: false
+        default: 14
+        type: number
+
+      mariadb_versions:
+        description: list of either numbers (ci buildbot builds), or x.y[.z] versions, e.g. [1234, 11.4, 11.8.2]
+        required: true
+        type: string
+
+      extra_packages:
+        description: Optional RPM package specifications
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+          mariadb_version: ${{ inputs.mariadb_versions }}
+    env:
+      MARIADB_VERSION: ${{ matrix.mariadb_version }}
+    steps:
+      - name: Install the SDK
+        run: |
+          set -euo pipefail
+          if [[ "$MARIADB_VERSION" =~ ^[0-9]+$ ]]; then
+            curl --output /etc/apt/sources.list.d/mariadb.sources \
+              https://ci.mariadb.org/$MARIADB_VERSION/amd64-ubuntu-2404-deb-autobake/mariadb.sources
+          elif [[ "$MARIADB_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            cat > apt/sources.list.d/mariadb.sources <<EOF
+          X-Repolib-Name: MariaDB
+          Types: deb
+          URIs: https://archive.mariadb.org/mariadb-$MARIADB_VERSION/repo/ubuntu
+          Suites: noble
+          Trusted: yes
+          EOF
+          fi
+          apt update
+          apt install libmariadb-dev cmake gcc g++
+
+      - name: Check out plugin repository at triggering commit
+        uses: actions/checkout@v5
+        with:
+          path: plugin-source
+          submodules: recursive
+
+      - name: Install optional plugin dependencies
+        env:
+          EXTRA_PACKAGES: ${{ inputs.extra_packages }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$EXTRA_PACKAGES" ]]; then
+            apt install $EXTRA_PACKAGES
+          fi
+
+      - name: Build only the plugin target
+        run: |
+          set -euo pipefail
+          cd plugin-source
+          cmake -DDEB=1 .
+          cmake --build . --target package --parallel
+
+      - name: Run MTR using prebuilt runtime
+        if: ${{ inputs.test_suites }}
+        env:
+          TEST_SUITES: ${{ inputs.test_suites }}
+        run: |
+          set -euo pipefail
+          apt install plugin-source/mariadb-plugin-*.deb
+          apt install mariadb-test mariadb-test-data
+          cd /usr/share/mariadb/mariadb-test
+          ./mtr --suites $TEST_SUITES --mem --force --verbose-restart --retry=1
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          path: plugin-source/mariadb-plugin-*.deb
+          if-no-files-found: error
+          retention-days: ${{ inputs.artifact_retention_days }}
