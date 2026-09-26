@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -n "$EXTRA_PACKAGES" ]]; then
-            apt install $EXTRA_PACKAGES
+            sudo apt install -y $EXTRA_PACKAGES
           fi
 
       - name: Build only the plugin target
@@ -84,10 +84,10 @@ jobs:
           TEST_SUITES: ${{ inputs.test_suites }}
         run: |
           set -euo pipefail
-          apt install plugin-source/mariadb-plugin-*.deb
-          apt install mariadb-test mariadb-test-data
+          sudo apt install -y plugin-source/mariadb-plugin-*.deb
+          sudo apt install -y mariadb-test mariadb-test-data
           cd /usr/share/mariadb/mariadb-test
-          ./mtr --suites $TEST_SUITES --mem --force --verbose-restart --retry=1
+          ./mtr --suites $TEST_SUITES --mem --force --verbose-restart --retry=1 --vardir=$HOME
 
       - name: Upload package
         uses: actions/upload-artifact@v7
