@@ -16,7 +16,7 @@ on:
         type: number
 
       mariadb_versions:
-        description: list of either numbers (ci buildbot builds), or x.y[.z] versions, e.g. [1234, 11.4, 11.8.2]
+        description: Whitespace-separated versions or a JSON array, e.g. 1234 11.4 11.8.2 or [1234, "11.4", "11.8.2"]
         required: true
         type: string
 
@@ -29,12 +29,32 @@ permissions:
   contents: read
 
 jobs:
+  versions:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        name: Parse MariaDB versions matrix
+        env:
+          VERSIONS: ${{ inputs.mariadb_versions }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          raw = os.environ['VERSIONS'].strip()
+          versions = json.loads(raw) if raw.startswith('[') else raw.split()
+          if not isinstance(versions, list) or not versions:
+              raise SystemExit('mariadb_versions must be a JSON array or a whitespace-separated list')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('matrix=' + json.dumps({'mariadb_version': [str(version) for version in versions]}) + '\n')
+          PYTHON
+
   build:
+    needs: versions
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix:
-          mariadb_version: ${{ inputs.mariadb_versions }}
+      matrix: ${{ fromJSON(needs.versions.outputs.matrix) }}
     env:
       MARIADB_VERSION: ${{ matrix.mariadb_version }}
     steps:
