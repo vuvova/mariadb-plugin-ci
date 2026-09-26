@@ -65,7 +65,7 @@ jobs:
             curl --output /etc/apt/sources.list.d/mariadb.sources \
               https://ci.mariadb.org/$MARIADB_VERSION/amd64-ubuntu-2404-deb-autobake/mariadb.sources
           elif [[ "$MARIADB_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            cat > apt/sources.list.d/mariadb.sources <<EOF
+            cat > /etc/apt/sources.list.d/mariadb.sources <<EOF
           X-Repolib-Name: MariaDB
           Types: deb
           URIs: https://archive.mariadb.org/mariadb-$MARIADB_VERSION/repo/ubuntu
