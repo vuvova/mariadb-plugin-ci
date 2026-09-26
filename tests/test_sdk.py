@@ -46,6 +46,34 @@ class SDKTests(unittest.TestCase):
                 result = subprocess.run(['python3', '-c', script], env=env, capture_output=True)
                 self.assertNotEqual(result.returncode, 0, invalid)
 
+    def test_new_workflow_matrix(self):
+        workflow = (ROOT / '.github/workflows/built-plugin-new.yml').read_text()
+        script = textwrap.dedent(workflow.split("python3 - <<'PYTHON'\n", 1)[1].split('          PYTHON', 1)[0])
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / 'output'
+            env = dict(os.environ, VERSIONS='1234 11.4 11.8.2 11.8.2', GITHUB_OUTPUT=str(output))
+            subprocess.run(['python3', '-c', script], env=env, check=True)
+            matrix = json.loads(output.read_text().split('=', 1)[1])['include']
+            self.assertEqual(matrix, [
+                {'mariadb_version': '1234'},
+                {'mariadb_version': '11.4'},
+                {'mariadb_version': '11.8.2'},
+            ])
+
+            env['VERSIONS'] = '[1234, "11.4", "11.8.2"]'
+            subprocess.run(['python3', '-c', script], env=env, check=True)
+            matrix = json.loads(output.read_text().splitlines()[-1].split('=', 1)[1])['include']
+            self.assertEqual(matrix, [
+                {'mariadb_version': '1234'},
+                {'mariadb_version': '11.4'},
+                {'mariadb_version': '11.8.2'},
+            ])
+
+            for invalid in ('', '11.8.x', 'main', '[13.0]', '[true]', '[{}]', '13.0.2;echo nope'):
+                env['VERSIONS'] = invalid
+                result = subprocess.run(['python3', '-c', script], env=env, capture_output=True)
+                self.assertNotEqual(result.returncode, 0, invalid)
+
     def test_real_cmake_plugin_only_and_package(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

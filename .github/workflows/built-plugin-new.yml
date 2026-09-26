@@ -29,11 +29,42 @@ permissions:
   contents: read
 
 jobs:
+  versions:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        name: Validate MariaDB versions
+        env:
+          VERSIONS: ${{ inputs.mariadb_versions }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, re
+          raw = os.environ['VERSIONS'].strip()
+          versions = json.loads(raw) if raw.startswith('[') else raw.split()
+          if not isinstance(versions, list) or not versions or len(versions) > 256:
+              raise SystemExit('mariadb_versions must contain 1..256 versions')
+          matrix = []
+          for version in versions:
+              if not isinstance(version, (int, str)):
+                  raise SystemExit('mariadb_versions entries must be strings or integers')
+              value = str(version)
+              if not re.fullmatch(r'[0-9]+|[0-9]+\.[0-9]+(\.[0-9]+)?', value):
+                  raise SystemExit('Use autobake build IDs or MariaDB releases such as 1234, 11.4, or 11.8.2')
+              row = {'mariadb_version': value}
+              if row not in matrix:
+                  matrix.append(row)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('matrix=' + json.dumps({'include': matrix}) + '\n')
+          PYTHON
+
   build:
+    needs: versions
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(inputs.mariadb_versions) }}
+      matrix: ${{ fromJSON(needs.versions.outputs.matrix) }}
     env:
       MARIADB_VERSION: ${{ matrix.mariadb_version }}
     steps:
@@ -68,7 +99,9 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -n "$EXTRA_PACKAGES" ]]; then
-            read -r -a extra_packages <<< "$EXTRA_PACKAGES"
+            normalized_extra_packages=${EXTRA_PACKAGES//$'\n'/ }
+            normalized_extra_packages=${normalized_extra_packages//$'\t'/ }
+            read -r -a extra_packages <<< "$normalized_extra_packages"
             sudo apt install -y "${extra_packages[@]}"
           fi
 
