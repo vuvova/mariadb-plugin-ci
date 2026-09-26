@@ -29,32 +29,11 @@ permissions:
   contents: read
 
 jobs:
-  versions:
-    runs-on: ubuntu-24.04
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-    steps:
-      - id: matrix
-        name: Parse MariaDB versions matrix
-        env:
-          VERSIONS: ${{ inputs.mariadb_versions }}
-        run: |
-          python3 - <<'PYTHON'
-          import json, os
-          raw = os.environ['VERSIONS'].strip()
-          versions = json.loads(raw) if raw.startswith('[') else raw.split()
-          if not isinstance(versions, list) or not versions:
-              raise SystemExit('mariadb_versions must be a JSON array or a whitespace-separated list')
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('matrix=' + json.dumps({'mariadb_version': [str(version) for version in versions]}) + '\n')
-          PYTHON
-
   build:
-    needs: versions
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.versions.outputs.matrix) }}
+      matrix: ${{ fromJSON(inputs.mariadb_versions) }}
     env:
       MARIADB_VERSION: ${{ matrix.mariadb_version }}
     steps:
