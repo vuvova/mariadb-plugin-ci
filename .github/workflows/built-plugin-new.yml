@@ -41,10 +41,11 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$MARIADB_VERSION" =~ ^[0-9]+$ ]]; then
-            curl --output /etc/apt/sources.list.d/mariadb.sources \
-              https://ci.mariadb.org/$MARIADB_VERSION/amd64-ubuntu-2404-deb-autobake/mariadb.sources
+            curl --fail --location \
+              "https://ci.mariadb.org/$MARIADB_VERSION/amd64-ubuntu-2404-deb-autobake/mariadb.sources" |
+              sudo tee /etc/apt/sources.list.d/mariadb.sources >/dev/null
           elif [[ "$MARIADB_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            cat > /etc/apt/sources.list.d/mariadb.sources <<EOF
+            cat <<EOF | sudo tee /etc/apt/sources.list.d/mariadb.sources >/dev/null
           X-Repolib-Name: MariaDB
           Types: deb
           URIs: https://archive.mariadb.org/mariadb-$MARIADB_VERSION/repo/ubuntu
@@ -52,8 +53,8 @@ jobs:
           Trusted: yes
           EOF
           fi
-          apt update
-          apt install libmariadb-dev cmake gcc g++
+          sudo apt-get update
+          sudo apt-get install -y -- libmariadb-dev cmake gcc g++
 
       - name: Check out plugin repository at triggering commit
         uses: actions/checkout@v5
