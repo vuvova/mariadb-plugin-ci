@@ -92,6 +92,7 @@ jobs:
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:
+          name: mariadb-plugin-${{ matrix.mariadb_version }}
           path: plugin-source/mariadb-plugin-*.deb
           if-no-files-found: error
           retention-days: ${{ inputs.artifact_retention_days }}
